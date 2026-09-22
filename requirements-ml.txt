@@ -1,0 +1,6 @@
+# Optional ML backends for real semantic embeddings + cross-encoder reranking.
+# Install with:  pip install -r requirements-ml.txt
+# Without these, the system falls back to a TF-IDF embedder and a lexical reranker,
+# so the full pipeline (and the test suite) still runs end-to-end.
+sentence-transformers>=2.7
+torch>=2.2

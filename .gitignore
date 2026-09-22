@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+
+# Data / models / db
+*.db
+*.db-shm
+*.db-wal
+data/*.db
+storage/
+.cache/
+models/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS
+.DS_Store
+
+# Eval outputs
+eval/reports/*.json
+eval/reports/*.md
+!eval/reports/.gitkeep

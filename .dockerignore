@@ -1,0 +1,14 @@
+.venv/
+frontend/node_modules/
+frontend/dist/
+**/__pycache__/
+*.db
+*.db-shm
+*.db-wal
+storage/
+.pytest_cache/
+.ruff_cache/
+.git/
+eval/reports/*.json
+eval/reports/*.md
+.env

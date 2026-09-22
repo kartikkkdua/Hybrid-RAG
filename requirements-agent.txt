@@ -1,0 +1,3 @@
+# Multi-agent layer (router → research → synthesize → critic).
+# Without it the core app runs normally; agent mode is reported unavailable.
+langgraph>=0.2

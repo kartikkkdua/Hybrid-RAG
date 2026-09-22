@@ -1,0 +1,14 @@
+{"question": "What constant does Reciprocal Rank Fusion commonly use?", "answer_spans": ["commonly set to 60"], "source": "rag_overview.md"}
+{"question": "How does a cross-encoder differ from a bi-encoder?", "answer_spans": ["single forward pass"], "source": "rag_overview.md"}
+{"question": "Why run both sparse and dense retrieval instead of one?", "answer_spans": ["either method alone would drop"], "source": "rag_overview.md"}
+{"question": "What kinds of queries is BM25 strong on?", "answer_spans": ["rare keywords, acronyms, and identifiers"], "source": "rag_overview.md"}
+{"question": "What does dense retrieval match on?", "answer_spans": ["encodes text into vectors and matches on meaning"], "source": "rag_overview.md"}
+{"question": "What does Mean Reciprocal Rank reward?", "answer_spans": ["placing the first relevant result as high as possible"], "source": "evaluation.md"}
+{"question": "What does nDCG capture that recall does not?", "answer_spans": ["graded relevance and ordering"], "source": "evaluation.md"}
+{"question": "What does faithfulness measure in a RAG answer?", "answer_spans": ["actually supported by the retrieved context"], "source": "evaluation.md"}
+{"question": "Which framework uses an LLM as a judge for RAG metrics?", "answer_spans": ["RAGAS framework"], "source": "evaluation.md"}
+{"question": "What is a gold set?", "answer_spans": ["fixed list of questions paired with the identifiers"], "source": "evaluation.md"}
+{"question": "What does recall@k ask?", "answer_spans": ["known relevant chunk appears in the top k"], "source": "evaluation.md"}
+{"question": "Which four tools does this project's MCP server expose?", "answer_spans": ["search_corpus, answer_question"], "source": "mcp.md"}
+{"question": "What are the three kinds of capability an MCP server exposes?", "answer_spans": ["Tools are callable functions", "Prompts are reusable message"], "source": "mcp.md"}
+{"question": "Why wire a retriever behind MCP rather than bespoke glue code?", "answer_spans": ["standardizing the transport and the schema"], "source": "mcp.md"}

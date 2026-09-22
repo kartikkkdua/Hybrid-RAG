@@ -1,0 +1,44 @@
+# Default (SQLite, zero infra):
+#   docker compose up --build            -> http://localhost:8000
+#
+# With Postgres + pgvector:
+#   docker compose --profile pg up --build
+#
+# Set ANTHROPIC_API_KEY in .env (or the shell) to enable grounded generation;
+# without it the app runs in extractive mode.
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEN_MODEL: ${GEN_MODEL:-claude-sonnet-5}
+      EMBED_BACKEND: ${EMBED_BACKEND:-auto}
+      DB_BACKEND: ${DB_BACKEND:-sqlite}
+      DB_PATH: /data/corpus.db
+      PG_DSN: ${PG_DSN:-postgresql://postgres:postgres@db:5432/rag}
+    volumes:
+      - ./data:/app/data:ro
+      - corpus:/data
+
+  # Production storage backend. Only started with `--profile pg`.
+  db:
+    profiles: ["pg"]
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: rag
+    ports:
+      - "55432:5432"
+    volumes:
+      - pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rag"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  corpus:
+  pg:
