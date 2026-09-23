@@ -66,7 +66,7 @@ and every citation is verified before it reaches the user.
 make venv                 # python venv + core deps (no torch, no DB server)
 make ingest               # index data/sample_docs
 make demo                 # search + ask (extractive mode without an API key)
-make test                 # 50 tests, all green
+make test                 # 66 tests, all green
 make serve                # API at http://localhost:8000  (also serves the built UI)
 ```
 
@@ -211,6 +211,46 @@ Design notes worth knowing:
   regenerating the question, so it cannot invent a different question.
 - The UI shows the expanded query, so the behaviour is visible rather than magic.
 
+### Semantic answer cache (`app/cache.py`)
+Identical and near-identical questions are common, and answering them twice costs
+real money. The cache serves **exact** repeats and **semantic** paraphrases, and
+reports hit-rate, cost saved and latency saved in `/api/stats`.
+
+The interesting part is not the caching — it is refusing to serve the wrong
+answer. Two independent failure modes, both handled:
+
+**1. Stale.** An answer is only valid for the corpus it was grounded in. Every
+entry records a corpus fingerprint and is dropped when documents are added or
+deleted. A cache that keeps citing a document you deleted is worse than none.
+
+**2. Confused.** Embedding similarity alone *cannot* separate a paraphrase from a
+near-miss. Measured on this corpus with `bge-small`:
+
+| pair | similarity | actually |
+|---|---|---|
+| "What does nDCG **capture**?" / "What does nDCG **measure**?" | 0.835 | same question |
+| "k1 parameter in **BM25**?" / "k1 parameter in **HNSW**?" | **0.863** | **different question** |
+
+The classes **overlap** — a distinct question scored *higher* than a genuine
+paraphrase — so no threshold is both useful and safe. Instead, a semantic
+candidate is **verified against retrieval before it is served**: if the new query
+does not retrieve the same top evidence, the hit is rejected. Retrieval costs
+~10ms; generation costs seconds; a wrong cached answer costs trust. Exact hits
+skip verification, since the query string is identical.
+
+Measured end-to-end:
+
+```
+same question again       cached=True   exact       13ms
+true paraphrase           cached=True   semantic    94ms
+near-miss (m in HNSW)     cached=False  miss       111ms   <- correctly refused
+near-miss (b parameter)   cached=False  miss       107ms   <- correctly refused
+```
+
+```bash
+make ab PASSES=2     # measures cache hit-rate and cost saved over a repeat pass
+```
+
 ### Prompt-injection defence (`app/safety.py`)
 This system ingests documents from outside its trust boundary and puts their text
 into an LLM prompt. **That makes the corpus an attack surface.** A PDF containing
@@ -349,6 +389,7 @@ app/              core library
   retrieval/      dense · fusion(RRF) · rerank · hybrid orchestrator
   rewrite.py      conversational query condensing (history-aware retrieval)
   safety.py       prompt-injection fencing + ingestion-time screening
+  cache.py        semantic answer cache with corpus + evidence verification
   agents/         LangGraph: state · nodes (router/planner/researcher/critic) · graph
   generation.py   grounded answers, citation verification, refusal
   llm.py          Anthropic wrapper with token + cost accounting
@@ -370,6 +411,9 @@ tests/            pytest — offsets, fusion, retrieval, citations, Postgres bac
   path; enforced a Pydantic JSON contract with automatic repair/retry.
 - Instrumented **token cost and p95 latency** per query; A/B-tested prompts and
   models to trade quality against cost.
+- Built a **semantic answer cache** that verifies candidates against retrieval,
+  after measuring that similarity alone cannot separate paraphrases from
+  near-misses on this corpus.
 - Hardened the ingest→prompt path against **indirect prompt injection** with
   structural fencing plus ingestion-time screening.
 - Raised MRR **0.877 → 0.954** and nDCG@10 **0.894 → 0.952** over the strongest

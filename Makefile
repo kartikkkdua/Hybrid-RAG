@@ -47,8 +47,8 @@ gate: ## Run the retrieval quality gate exactly as CI does
 	$(PY) -m eval.run_eval --docs data/sample_docs --out-json eval/reports/ci.json
 	$(PY) -m eval.check_thresholds eval/reports/ci.json
 
-ab: ## Run the prompt/model A/B harness
-	$(PY) -m eval.ab_harness --docs data/sample_docs
+ab: ## Run the prompt/model A/B harness (PASSES=2 measures the cache)
+	$(PY) -m eval.ab_harness --docs data/sample_docs $(if $(PASSES),--passes $(PASSES),)
 
 mcp-demo: ## Run the MCP client<->server round-trip demo
 	$(PY) -m mcp_server.client

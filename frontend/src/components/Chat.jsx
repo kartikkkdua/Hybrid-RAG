@@ -118,6 +118,16 @@ export default function Chat({
               onClick={() => onSelectMessage(i)}
             >
               <div className="bubble">
+                {m.cached && (
+                  <div className="cache-note" title={
+                    m.cacheKind === "semantic"
+                      ? "A differently-worded question matched this answer, and retrieval confirmed it uses the same evidence."
+                      : "The identical question was asked before."
+                  }>
+                    <span className="cn-label">cached</span>
+                    <span className="cn-kind">{m.cacheKind}</span>
+                  </div>
+                )}
                 {m.rewritten && m.searchQuery && (
                   <div className="rewrite-note" title="Retrieval has no memory, so the follow-up was expanded using the conversation">
                     <span className="rw-label">searched</span>

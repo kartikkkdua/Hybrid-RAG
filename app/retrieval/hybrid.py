@@ -44,6 +44,7 @@ class HybridRetriever:
         use_bm25: bool = True,
         use_dense: bool = True,
         use_rerank: bool = True,
+        query_vec=None,
     ) -> SearchResponse:
         s = self.settings
         top_k = top_k or s.top_k_rerank
@@ -68,7 +69,9 @@ class HybridRetriever:
         # --- dense ---
         if use_dense:
             td = time.perf_counter()
-            qv = self.embedder.embed_query(query)
+            # Reuse a caller-supplied vector when available (the answer path
+            # already embeds the query for the semantic cache).
+            qv = query_vec if query_vec is not None else self.embedder.embed_query(query)
             # The store owns the vector search: NumPy cosine on SQLite,
             # pgvector HNSW on Postgres.
             dense = self.db.dense_search(qv, s.top_k_dense)

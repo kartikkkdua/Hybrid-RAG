@@ -136,10 +136,35 @@ async def answer_stream(query: str, top_k: int = 8, rerank: bool = True,
                 turns = [t for t in parsed if isinstance(t, dict)]
         except (json.JSONDecodeError, TypeError):
             turns = []
-    sr = svc.search(query, top_k=top_k, rerank=rerank, dense=dense, bm25=bm25,
-                    history=turns)
+    # The cache is keyed partly on mode, so probe with the mode this request
+    # will actually use — otherwise stores and lookups never meet.
+    stream_mode = "grounded" if svc.llm.available else "extractive"
+
+    # A cache hit short-circuits the whole pipeline: emit the stored answer at
+    # once rather than re-running retrieval and re-streaming identical tokens.
+    cached = svc.lookup_cached(query, top_k=top_k, rerank=rerank,
+                               mode=stream_mode, history=turns)
+    sr = None if cached else svc.search(query, top_k=top_k, rerank=rerank,
+                                        dense=dense, bm25=bm25, history=turns)
 
     async def event_gen():
+        if cached is not None:
+            yield {"event": "retrieval", "data": json.dumps(
+                {"results": [r.model_dump() for r in cached.retrieved],
+                 "stages": {"cache": {"kind": cached.cache_kind}},
+                 "latency_ms": 0.0, "search_query": cached.search_query,
+                 "rewritten": cached.rewritten,
+                 "rewrite_method": cached.rewrite_method})}
+            yield {"event": "token", "data": json.dumps({"text": cached.answer})}
+            yield {"event": "done", "data": json.dumps({
+                "answer": cached.answer,
+                "citations": [c.model_dump() for c in cached.citations],
+                "usage": cached.usage.model_dump(),
+                "verification": cached.verification,
+                "refused": cached.refused,
+                "cached": True, "cache_kind": cached.cache_kind})}
+            return
+
         yield {"event": "retrieval", "data": json.dumps(
             {"results": [r.model_dump() for r in sr.results], "stages": sr.stages,
              "latency_ms": sr.latency_ms, "search_query": sr.search_query,
@@ -160,12 +185,24 @@ async def answer_stream(query: str, top_k: int = 8, rerank: bool = True,
         # No LLM configured: emit the extractive answer as one chunk.
         if not svc.llm.available:
             ans = svc.generator.answer(query, sr.results, mode="extractive")
+            # Cache this path too — otherwise the no-API-key mode never benefits.
+            if not ans.refused:
+                svc.cache_streamed_answer(
+                    query, top_k=top_k, rerank=rerank, history=turns,
+                    answer_text=ans.answer,
+                    citations=[c.model_dump() for c in ans.citations],
+                    usage=ans.usage.model_dump(), verification=ans.verification,
+                    retrieved=sr.results, search_query=sr.search_query,
+                    rewritten=sr.rewritten, rewrite_method=sr.rewrite_method,
+                    mode="extractive",
+                )
             yield {"event": "token", "data": json.dumps({"text": ans.answer})}
             yield {"event": "done", "data": json.dumps(
                 {"answer": ans.answer,
                  "citations": [c.model_dump() for c in ans.citations],
                  "usage": ans.usage.model_dump(), "refused": ans.refused,
-                 "verification": ans.verification})}
+                 "verification": ans.verification,
+                 "cached": False, "cache_kind": "miss"})}
             return
 
         # Live LLM streaming (raw JSON tokens); verify citations from the buffer at end.
@@ -192,10 +229,21 @@ async def answer_stream(query: str, top_k: int = 8, rerank: bool = True,
                 refused = (not raw.answerable) or (len(citations) == 0)
             except Exception:
                 pass
+        # Populate the cache so an identical follow-up is served instantly.
+        if not refused:
+            svc.cache_streamed_answer(
+                query, top_k=top_k, rerank=rerank, history=turns,
+                answer_text=answer_text, citations=citations,
+                usage=usage.model_dump() if usage else {},
+                verification=verification, retrieved=sr.results,
+                search_query=sr.search_query, rewritten=sr.rewritten,
+                rewrite_method=sr.rewrite_method,
+            )
         yield {"event": "done", "data": json.dumps({
             "answer": answer_text, "citations": citations,
             "usage": usage.model_dump() if usage else {},
-            "verification": verification, "refused": refused})}
+            "verification": verification, "refused": refused,
+            "cached": False, "cache_kind": "miss"})}
 
     return EventSourceResponse(event_gen())
 

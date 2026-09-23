@@ -39,6 +39,15 @@ class Settings(BaseSettings):
     top_k_dense: int = Field(default=40, alias="TOP_K_DENSE")
     top_k_rerank: int = Field(default=8, alias="TOP_K_RERANK")
 
+    # --- Semantic answer cache ---
+    cache_enabled: bool = Field(default=True, alias="CACHE_ENABLED")
+    # Similarity alone is not sufficient (see app/cache.py) — a semantic
+    # candidate must also retrieve the same evidence to be served.
+    cache_threshold: float = Field(default=0.90, alias="CACHE_THRESHOLD")
+    cache_min_overlap: float = Field(default=0.6, alias="CACHE_MIN_OVERLAP")
+    cache_max_entries: int = Field(default=256, alias="CACHE_MAX_ENTRIES")
+    cache_ttl_seconds: float = Field(default=3600.0, alias="CACHE_TTL_SECONDS")
+
     # --- Storage ---
     # sqlite  : zero-infra default (FTS5 BM25 + NumPy cosine)
     # postgres: production backend (tsvector BM25 + pgvector HNSW)

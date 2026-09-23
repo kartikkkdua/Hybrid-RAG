@@ -122,6 +122,8 @@ class Answer(BaseModel):
     search_query: str = ""
     rewritten: bool = False
     rewrite_method: str = "none"
+    cached: bool = False
+    cache_kind: str = "miss"   # miss | exact | semantic
 
 
 class AnswerRequest(BaseModel):

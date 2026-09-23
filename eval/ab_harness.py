@@ -31,23 +31,37 @@ def make_variants(models: list[str]) -> list[dict]:
     return variants
 
 
-def run_variant(svc: RAGService, gold: list[dict], variant: dict) -> dict:
+def run_variant(svc: RAGService, gold: list[dict], variant: dict,
+                passes: int = 1) -> dict:
+    """Run the gold set `passes` times.
+
+    A second pass over the same questions is how the semantic cache's value is
+    *measured* rather than asserted: identical questions should be served from
+    cache at zero marginal cost.
+    """
     latencies, costs, in_toks, out_toks, verified_rates, refusals = [], [], [], [], [], 0
-    for item in gold:
-        t0 = time.perf_counter()
-        ans = svc.answer(item["question"], top_k=variant["top_k"],
-                         rerank=variant["rerank"], mode="grounded",
-                         model=variant["model"])
-        latencies.append((time.perf_counter() - t0) * 1000)
-        costs.append(ans.usage.cost_usd)
-        in_toks.append(ans.usage.input_tokens)
-        out_toks.append(ans.usage.output_tokens)
-        if ans.refused:
-            refusals += 1
-        v = ans.verification
-        if v.get("citations_total"):
-            verified_rates.append(v["citations_verified"] / v["citations_total"])
-    n = len(gold)
+    cached_hits = 0
+    total_calls = 0
+    for _ in range(max(1, passes)):
+        for item in gold:
+            t0 = time.perf_counter()
+            ans = svc.answer(item["question"], top_k=variant["top_k"],
+                             rerank=variant["rerank"], mode="grounded",
+                             model=variant["model"])
+            latencies.append((time.perf_counter() - t0) * 1000)
+            total_calls += 1
+            if ans.cached:
+                cached_hits += 1
+                continue  # a cache hit costs nothing and skews nothing
+            costs.append(ans.usage.cost_usd)
+            in_toks.append(ans.usage.input_tokens)
+            out_toks.append(ans.usage.output_tokens)
+            if ans.refused:
+                refusals += 1
+            v = ans.verification
+            if v.get("citations_total"):
+                verified_rates.append(v["citations_verified"] / v["citations_total"])
+    n = max(total_calls - cached_hits, 1)
     return {
         "variant": variant["name"],
         "avg_cost_usd": round(statistics.mean(costs), 6) if costs else 0.0,
@@ -58,6 +72,8 @@ def run_variant(svc: RAGService, gold: list[dict], variant: dict) -> dict:
         "latency_p95_ms": round(_pctl(latencies, 95), 1) if latencies else 0.0,
         "verified_citation_rate": round(statistics.mean(verified_rates), 3) if verified_rates else 0.0,
         "refusal_rate": round(refusals / n, 3) if n else 0.0,
+        "cache_hit_rate": round(cached_hits / total_calls, 3) if total_calls else 0.0,
+        "cache_saved_usd": round(svc.cache.stats.cost_saved_usd, 5),
     }
 
 
@@ -66,6 +82,8 @@ def main():
     ap.add_argument("--docs", default="data/sample_docs")
     ap.add_argument("--gold", default=str(Path(__file__).parent / "gold.jsonl"))
     ap.add_argument("--models", default="")
+    ap.add_argument("--passes", type=int, default=1,
+                    help="run the gold set N times to measure the semantic cache")
     args = ap.parse_args()
 
     settings = Settings(DB_PATH="storage/ab.db")
@@ -83,7 +101,9 @@ def main():
               "cost/token columns will be zero, latency + citation rate are real.\n")
     variants = make_variants(models)
 
-    rows = [run_variant(svc, gold, v) for v in variants]
+    if args.passes > 1:
+        print(f"Running {args.passes} passes to measure cache effectiveness.\n")
+    rows = [run_variant(svc, gold, v, passes=args.passes) for v in variants]
     _print_table(rows)
 
     ts = time.strftime("%Y%m%d-%H%M%S")
@@ -96,7 +116,8 @@ def main():
 
 def _print_table(rows: list[dict]):
     cols = ["variant", "avg_cost_usd", "avg_in_tok", "avg_out_tok",
-            "latency_p50_ms", "latency_p95_ms", "verified_citation_rate", "refusal_rate"]
+            "latency_p50_ms", "latency_p95_ms", "verified_citation_rate",
+            "refusal_rate", "cache_hit_rate", "cache_saved_usd"]
     widths = {c: max(len(c), max(len(f"{r.get(c,'')}") for r in rows)) for c in cols}
     header = "  ".join(c.ljust(widths[c]) for c in cols)
     print(header)

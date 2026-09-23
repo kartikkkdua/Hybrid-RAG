@@ -148,6 +148,8 @@ export default function App() {
           verification: d.verification || null,
           refused: !!d.refused,
           refusalReason: d.refusal_reason || "No verifiable answer in the corpus.",
+          cached: !!d.cached,
+          cacheKind: d.cache_kind || "miss",
           streaming: false,
         });
         setRunning(false);
