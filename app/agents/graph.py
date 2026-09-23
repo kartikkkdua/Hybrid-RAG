@@ -104,12 +104,39 @@ class AgentRunner:
         self.svc = svc
         self.graph = build_graph(svc)
 
+    @staticmethod
+    def _init(question: str, top_k: int) -> AgentState:
+        return {"question": question, "top_k": top_k, "iterations": 0,
+                "trace": [], "usage": {}}
+
     def run(self, question: str, top_k: int = 8) -> AgentAnswer:
         t0 = time.perf_counter()
-        init: AgentState = {"question": question, "top_k": top_k, "iterations": 0,
-                            "trace": [], "usage": {}}
-        final = self.graph.invoke(init)
+        final = self.graph.invoke(self._init(question, top_k))
         return self._to_answer(final, round((time.perf_counter() - t0) * 1000, 2))
+
+    def run_streaming(self, question: str, top_k: int = 8):
+        """Yield ('node', step) as each agent runs, then ('done', AgentAnswer).
+
+        The graph branches and loops, so there is no token stream to forward —
+        what is worth streaming is the *control flow*: the user sees it route,
+        decompose, research and self-critique instead of staring at a spinner.
+        """
+        t0 = time.perf_counter()
+        merged: dict = dict(self._init(question, top_k))
+        for chunk in self.graph.stream(self._init(question, top_k)):
+            for node, update in chunk.items():
+                if not isinstance(update, dict):
+                    continue
+                # `trace` uses an append reducer in the graph; merge it by hand
+                # here because we are accumulating updates ourselves.
+                steps = update.get("trace") or []
+                merged["trace"] = (merged.get("trace") or []) + steps
+                for k, v in update.items():
+                    if k != "trace":
+                        merged[k] = v
+                for step in steps:
+                    yield "node", step
+        yield "done", self._to_answer(merged, round((time.perf_counter() - t0) * 1000, 2))
 
     def _to_answer(self, s: AgentState, wall_ms: float) -> AgentAnswer:
         u = s.get("usage") or {}

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { agentAnswer, getSources, getStats, streamAnswer } from "./api.js";
+import { getSources, getStats, streamAgent, streamAnswer } from "./api.js";
 import Chat from "./components/Chat.jsx";
 import Corpus from "./components/Corpus.jsx";
 import Inspector from "./components/Inspector.jsx";
@@ -91,11 +91,18 @@ export default function App() {
       .map((m) => ({ role: m.role, text: (m.text || "").slice(0, 400) }))
       .filter((m) => m.text);
 
-    // Agent mode runs the LangGraph graph (not streamable — it branches), so we
-    // await the whole run and then render its trace.
+    // Agent mode streams the graph's control flow: each node appears in the
+    // trace as it runs, instead of the user waiting on a spinner.
     if (settings.agentMode) {
-      agentAnswer(q, settings.topK, history)
-        .then((d) => {
+      streamAgent(q, settings.topK, {
+        onNode: (step) =>
+          setMessages((ms) => {
+            const copy = [...ms];
+            const i = copy.length - 1;
+            if (i >= 0) copy[i] = { ...copy[i], trace: [...(copy[i].trace || []), step] };
+            return copy;
+          }),
+        onDone: (d) => {
           patchLast({
             text: d.answer || "",
             citations: d.citations || [],
@@ -117,15 +124,16 @@ export default function App() {
           });
           setRunning(false);
           refresh();
-        })
-        .catch((e) => {
+        },
+        onError: () => {
           patchLast({
             streaming: false,
             refused: true,
-            refusalReason: `Agent request failed: ${e.message}`,
+            refusalReason: "Agent stream failed.",
           });
           setRunning(false);
-        });
+        },
+      }, history);
       return;
     }
 

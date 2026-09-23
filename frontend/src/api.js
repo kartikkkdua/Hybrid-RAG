@@ -35,6 +35,24 @@ export const agentAnswer = (query, topK = 8, history = []) =>
     body: JSON.stringify({ query, top_k: topK, history }),
   });
 
+// The agent graph branches and loops, so there are no tokens to stream — what
+// streams is the control flow, one event per node as it runs.
+export function streamAgent(query, topK, { onNode, onDone, onError }, history = []) {
+  const p = new URLSearchParams({ query, top_k: String(topK ?? 8) });
+  if (history.length) p.set("history", JSON.stringify(history));
+  const es = new EventSource(`${BASE}/agent/stream?${p}`);
+  es.addEventListener("node", (e) => onNode(JSON.parse(e.data)));
+  es.addEventListener("done", (e) => {
+    onDone(JSON.parse(e.data));
+    es.close();
+  });
+  es.onerror = (e) => {
+    onError && onError(e);
+    es.close();
+  };
+  return es;
+}
+
 export const search = (query, opts = {}) =>
   j("/search", {
     method: "POST",

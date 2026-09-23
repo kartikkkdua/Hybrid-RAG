@@ -262,6 +262,19 @@ class RAGService:
         ans.rewrite_method = rw.method
         return ans
 
+    def agent_answer_streaming(self, query: str, top_k: int = 8,
+                               history: Optional[list] = None):
+        """Yield the agent's node events as they happen, then the final answer."""
+        from .agents.graph import get_runner
+
+        rw = condense_query(query, _as_turns(history), self.llm)
+        for kind, payload in get_runner(self).run_streaming(rw.query, top_k=top_k):
+            if kind == "done":
+                payload.search_query = rw.query
+                payload.rewritten = rw.rewritten
+                payload.rewrite_method = rw.method
+            yield kind, payload
+
     @staticmethod
     def agent_available() -> bool:
         try:

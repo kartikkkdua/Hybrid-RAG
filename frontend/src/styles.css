@@ -346,3 +346,9 @@ textarea:focus { outline: none; border-color: var(--accent); }
 }
 .cn-label { text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; }
 .cn-kind { opacity: 0.8; font-family: ui-monospace, monospace; }
+
+.at-live {
+  font-size: 10px; color: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: 0.35; } }

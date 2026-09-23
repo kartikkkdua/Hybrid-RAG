@@ -19,22 +19,39 @@ const NODE_LABEL = {
 export default function AgentTrace({ message }) {
   const { trace, route, routeReason, subquestions, iterations, escalated, critique } =
     message;
-  if (!trace?.length) return null;
+  const live = !!message.streaming;
+  if (!trace?.length) {
+    return live ? (
+      <div className="agent-trace">
+        <div className="at-head">
+          <span className="at-title">Agent trace</span>
+          <span className="muted tiny">starting…</span>
+        </div>
+      </div>
+    ) : null;
+  }
+
+  // While streaming, the final payload has not arrived yet — the router's own
+  // trace step already carries the decision, so read it from there.
+  const routerStep = trace.find((t) => t.node === "router");
+  const shownRoute = route || routerStep?.data?.route || "";
+  const shownReason = routeReason || routerStep?.detail || "";
 
   return (
     <div className="agent-trace">
       <div className="at-head">
         <span className="at-title">Agent trace</span>
-        <span className={"route-pill " + route}>{route}</span>
+        {shownRoute && <span className={"route-pill " + shownRoute}>{shownRoute}</span>}
         {escalated && (
           <span className="route-pill escalated" title="The critic rejected the first draft">
             escalated
           </span>
         )}
         {iterations > 1 && <span className="muted tiny">{iterations} iterations</span>}
+        {live && <span className="at-live">running…</span>}
       </div>
 
-      {routeReason && <div className="muted tiny at-reason">{routeReason}</div>}
+      {shownReason && <div className="muted tiny at-reason">{shownReason}</div>}
 
       <ol className="at-steps">
         {trace.map((t, i) => (

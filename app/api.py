@@ -8,6 +8,7 @@ and the dev Vite proxy can share one path scheme.
   POST /api/search        hybrid retrieval (returns per-stage scores)
   POST /api/answer        grounded answer with verified citations
   GET  /api/answer/stream live token streaming (SSE)
+  GET  /api/agent/stream  live agent node events (SSE)
   GET  /api/sources       list ingested documents
   GET  /api/stats         corpus + backend info
   GET  /api/healthz
@@ -87,6 +88,43 @@ def agent(req: AnswerRequest):
         raise HTTPException(status_code=501, detail="langgraph is not installed")
     return svc.agent_answer(req.query, top_k=req.top_k,
                             history=req.history).model_dump()
+
+
+@api.get("/agent/stream")
+async def agent_stream(query: str, top_k: int = 8, history: str = ""):
+    """Stream the multi-agent graph's node events, then the final answer."""
+    svc = get_service()
+    if not svc.agent_available():
+        raise HTTPException(status_code=501, detail="langgraph is not installed")
+    turns = []
+    if history:
+        try:
+            parsed = json.loads(history)
+            if isinstance(parsed, list):
+                turns = [t for t in parsed if isinstance(t, dict)]
+        except (json.JSONDecodeError, TypeError):
+            turns = []
+
+    async def event_gen():
+        for kind, payload in svc.agent_answer_streaming(query, top_k=top_k, history=turns):
+            if kind == "node":
+                yield {"event": "node", "data": json.dumps(payload)}
+            else:
+                a = payload
+                yield {"event": "done", "data": json.dumps({
+                    "answer": a.answer, "refused": a.refused,
+                    "refusal_reason": a.refusal_reason,
+                    "citations": [c.model_dump() for c in a.citations],
+                    "retrieved": [r.model_dump() for r in a.retrieved],
+                    "usage": a.usage.model_dump(), "verification": a.verification,
+                    "route": a.route, "route_reason": a.route_reason,
+                    "subquestions": a.subquestions, "iterations": a.iterations,
+                    "escalated": a.escalated, "critique": a.critique,
+                    "trace": [t.model_dump() for t in a.trace],
+                    "search_query": a.search_query, "rewritten": a.rewritten,
+                })}
+
+    return EventSourceResponse(event_gen())
 
 
 @api.get("/sources")

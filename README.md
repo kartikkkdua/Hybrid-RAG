@@ -66,7 +66,7 @@ and every citation is verified before it reaches the user.
 make venv                 # python venv + core deps (no torch, no DB server)
 make ingest               # index data/sample_docs
 make demo                 # search + ask (extractive mode without an API key)
-make test                 # 66 tests, all green
+make test                 # 71 tests, all green
 make serve                # API at http://localhost:8000  (also serves the built UI)
 ```
 
@@ -313,6 +313,12 @@ curl -X POST localhost:8000/api/agent -H 'Content-Type: application/json' -d '{"
 The UI has an **Agent mode** toggle that renders the full trace — route, each node
 with its timing, the sub-questions, and the critic's verdict — so the graph is
 inspectable rather than a black box.
+
+**Streaming**: the graph branches and loops, so there is no token stream to
+forward. What is worth streaming is the *control flow* — `GET /api/agent/stream`
+emits one SSE event per node as it runs, so the trace fills in live instead of the
+user watching a spinner. `tests/test_agent_stream.py` asserts the streamed trace
+is identical to what the blocking path produces, so the two cannot drift.
 
 Every node has a deterministic heuristic fallback, so the graph routes, decomposes,
 escalates and terminates **with no API key** — which is what makes it testable.
