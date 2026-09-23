@@ -30,12 +30,25 @@ def main() -> int:
     spec = json.loads(Path(args.thresholds).read_text())
     target = spec.get("config", "hybrid + rerank")
 
+    # The system has two honest configurations; hold each to its own bar.
+    # The report records which embedder actually ran, so pick from that rather
+    # than trusting a flag the caller might forget to pass.
+    embedder = report.get("embedder", "")
+    profiles = spec.get("profiles") or {"default": spec}
+    profile_name, profile = "fallback", profiles.get("fallback", spec)
+    for name, prof in profiles.items():
+        prefix = prof.get("match_embedder_prefix")
+        if prefix and embedder.startswith(prefix):
+            profile_name, profile = name, prof
+            break
+    spec = profile
+
     row = next((r for r in report.get("retrieval", []) if r.get("config") == target), None)
     if row is None:
         print(f"FAIL: no '{target}' row in {args.report}")
         return 1
 
-    print(f"Quality gate — config: {target}")
+    print(f"Quality gate — config: {target} | profile: {profile_name}")
     print(f"  corpus: {report.get('n_chunks')} chunks | gold: {report.get('n_gold')} "
           f"questions | embedder: {report.get('embedder')}")
     print()

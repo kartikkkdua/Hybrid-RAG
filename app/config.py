@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     rerank_model: str = Field(default="cross-encoder/ms-marco-MiniLM-L-6-v2", alias="RERANK_MODEL")
 
     # --- Chunking ---
-    chunk_tokens: int = Field(default=350, alias="CHUNK_TOKENS")
-    chunk_overlap: int = Field(default=60, alias="CHUNK_OVERLAP")
+    chunk_tokens: int = Field(default=220, alias="CHUNK_TOKENS")
+    chunk_overlap: int = Field(default=40, alias="CHUNK_OVERLAP")
 
     # --- Retrieval ---
     rrf_k: int = Field(default=60, alias="RRF_K")

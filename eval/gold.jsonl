@@ -12,3 +12,53 @@
 {"question": "Which four tools does this project's MCP server expose?", "answer_spans": ["search_corpus, answer_question"], "source": "mcp.md"}
 {"question": "What are the three kinds of capability an MCP server exposes?", "answer_spans": ["Tools are callable functions", "Prompts are reusable message"], "source": "mcp.md"}
 {"question": "Why wire a retriever behind MCP rather than bespoke glue code?", "answer_spans": ["standardizing the transport and the schema"], "source": "mcp.md"}
+{"question": "Why can a bi-encoder encode the corpus ahead of time?", "answer_spans": ["document vectors do not depend on the query"], "source": "embeddings.md"}
+{"question": "What is mean pooling?", "answer_spans": ["averages the token vectors"], "source": "embeddings.md"}
+{"question": "What happens to cosine similarity after L2 normalization?", "answer_spans": ["cosine similarity between two vectors equals their dot product"], "source": "embeddings.md"}
+{"question": "How much memory does a 384-dimensional embedding use per passage?", "answer_spans": ["1.5 KB per passage in float32"], "source": "embeddings.md"}
+{"question": "What are Matryoshka embeddings for?", "answer_spans": ["truncating the vector to a shorter prefix degrades quality gracefully"], "source": "embeddings.md"}
+{"question": "What is a common silent cause of poor retrieval in asymmetric search?", "answer_spans": ["Forgetting the prefix at query time"], "source": "embeddings.md"}
+{"question": "When should you just use exact vector search?", "answer_spans": ["tens of thousands of vectors"], "source": "vector_indexes.md"}
+{"question": "What does the nprobe parameter control?", "answer_spans": ["how many clusters to visit"], "source": "vector_indexes.md"}
+{"question": "What are the costs of HNSW?", "answer_spans": ["memory, since the graph edges are stored"], "source": "vector_indexes.md"}
+{"question": "What does the m parameter do in HNSW?", "answer_spans": ["how many edges each node keeps"], "source": "vector_indexes.md"}
+{"question": "How much compression does product quantization achieve?", "answer_spans": ["sixteen to thirty-two times"], "source": "vector_indexes.md"}
+{"question": "Why is reporting latency without recall meaningless?", "answer_spans": ["allowed to return the wrong answers"], "source": "vector_indexes.md"}
+{"question": "What does the k1 parameter control in BM25?", "answer_spans": ["contribution of each additional occurrence shrinks"], "source": "bm25.md"}
+{"question": "How does BM25 weight rare terms?", "answer_spans": ["logarithm of the ratio between the total number of documents"], "source": "bm25.md"}
+{"question": "What does the b parameter do?", "answer_spans": ["divides by a factor derived from the document's length"], "source": "bm25.md"}
+{"question": "What is the vocabulary mismatch problem?", "answer_spans": ["matches strings, not meaning"], "source": "bm25.md"}
+{"question": "Why does chunk overlap exist?", "answer_spans": ["straddles a boundary still appears intact"], "source": "chunking_strategies.md"}
+{"question": "What is the downside of semantic chunking?", "answer_spans": ["costs an embedding pass over every sentence"], "source": "chunking_strategies.md"}
+{"question": "What is the trade-off between small and large chunks?", "answer_spans": ["dilute the embedding"], "source": "chunking_strategies.md"}
+{"question": "Why record character offsets at ingestion?", "answer_spans": ["impossible to retrofit"], "source": "chunking_strategies.md"}
+{"question": "Why can't a cross-encoder precompute anything?", "answer_spans": ["fifty forward passes at query time"], "source": "reranking.md"}
+{"question": "How does ColBERT store its index?", "answer_spans": ["one vector per token rather than one per passage"], "source": "reranking.md"}
+{"question": "What is the difference between pointwise and listwise reranking?", "answer_spans": ["order them relative to each other"], "source": "reranking.md"}
+{"question": "How do you decide how deep to rerank?", "answer_spans": ["recall at fifty versus recall at ten"], "source": "reranking.md"}
+{"question": "What is HyDE?", "answer_spans": ["draft a fake answer to the query"], "source": "query_expansion.md"}
+{"question": "What is the risk of pseudo-relevance feedback?", "answer_spans": ["amplifies errors"], "source": "query_expansion.md"}
+{"question": "When should a query not be expanded?", "answer_spans": ["dilutes the rare term"], "source": "query_expansion.md"}
+{"question": "Why should a rewritten query be used only for retrieval?", "answer_spans": ["generation still receives the user's original wording"], "source": "query_expansion.md"}
+{"question": "Why do grounded systems still hallucinate?", "answer_spans": ["does not compel it to use it"], "source": "hallucination.md"}
+{"question": "Why is a citation alone insufficient?", "answer_spans": ["a claim about a claim"], "source": "hallucination.md"}
+{"question": "Why is refusal important?", "answer_spans": ["no upper bound on how wrong they can be"], "source": "hallucination.md"}
+{"question": "How are faithfulness and relevance independent?", "answer_spans": ["nothing to do with the question"], "source": "hallucination.md"}
+{"question": "What is indirect prompt injection?", "answer_spans": ["hides the same payload inside a document"], "source": "security.md"}
+{"question": "How should retrieved text be treated in a prompt?", "answer_spans": ["strictly as data"], "source": "security.md"}
+{"question": "How does the markdown image exfiltration attack work?", "answer_spans": ["URL embeds the conversation"], "source": "security.md"}
+{"question": "Why is filtering after retrieval dangerous for multi-tenancy?", "answer_spans": ["already been computed over other tenants"], "source": "security.md"}
+{"question": "Why report p95 instead of the mean latency?", "answer_spans": ["hides the experience of the users having the worst time"], "source": "observability.md"}
+{"question": "What are the three main cost levers?", "answer_spans": ["Context size is the largest"], "source": "observability.md"}
+{"question": "What should a query trace record?", "answer_spans": ["query as received and the query actually searched"], "source": "observability.md"}
+{"question": "Why are hard negatives better than random ones?", "answer_spans": ["force the model to learn fine distinctions"], "source": "fine_tuning.md"}
+{"question": "What is the risk of in-batch negatives?", "answer_spans": ["some of those other passages genuinely answer the query"], "source": "fine_tuning.md"}
+{"question": "What does LoRA freeze and what does it train?", "answer_spans": ["freezes the base weights and trains small rank-decomposition matrices"], "source": "fine_tuning.md"}
+{"question": "What should you try before fine-tuning?", "answer_spans": ["better chunking, hybrid retrieval, and a reranker"], "source": "fine_tuning.md"}
+{"question": "What is the lost in the middle problem?", "answer_spans": ["beginning and end receiving more weight"], "source": "prompting.md"}
+{"question": "Why does a retry help with malformed model output?", "answer_spans": ["shown precisely what was wrong"], "source": "prompting.md"}
+{"question": "What temperature should grounded extraction use?", "answer_spans": ["temperature at zero"], "source": "prompting.md"}
+{"question": "Why is the routing decision valuable in an agent?", "answer_spans": ["keeps the cheap path cheap"], "source": "agents.md"}
+{"question": "Why deduplicate evidence across sub-questions?", "answer_spans": ["same text in the context twice"], "source": "agents.md"}
+{"question": "What is the most reliable critic check?", "answer_spans": ["not a language model at all but a hard check"], "source": "agents.md"}
+{"question": "What must every agent retry loop have?", "answer_spans": ["hard iteration bound"], "source": "agents.md"}

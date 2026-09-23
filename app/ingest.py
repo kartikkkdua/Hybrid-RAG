@@ -16,6 +16,7 @@ from .config import Settings
 from .stores.base import Store
 from .embeddings import Embedder
 from .models import Chunk, Document, IngestResponse
+from .safety import scan_for_injection
 
 
 def _hash(text: str) -> str:
@@ -42,6 +43,12 @@ class Ingestor:
             return IngestResponse(
                 doc_id=existing, source=source, n_chunks=0, n_chars=len(text), skipped=True
             )
+
+        # Screen for indirect prompt injection as the document ENTERS the corpus,
+        # so a hostile file is caught here rather than discovered when it steers
+        # an answer. Reported, not enforced: legitimate documents discuss these
+        # phrases, and silently refusing to index them would be worse.
+        scan = scan_for_injection(text)
 
         doc_id = f"doc_{content_hash[:12]}"
         text_chunks = chunk_text(text, self.settings.chunk_tokens, self.settings.chunk_overlap)
@@ -72,13 +79,17 @@ class Ingestor:
             n_chunks=len(chunks),
             n_chars=len(text),
             created_at=_dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
-            metadata=metadata,
+            metadata={**metadata, "injection_risk": scan.risk,
+                      "injection_flagged": scan.flagged,
+                      "injection_matches": scan.matches[:5]},
         )
         self.db.upsert_document(doc)
         if chunks:
             self.db.insert_chunks(chunks, embeddings)
         return IngestResponse(
-            doc_id=doc_id, source=source, n_chunks=len(chunks), n_chars=len(text)
+            doc_id=doc_id, source=source, n_chunks=len(chunks), n_chars=len(text),
+            injection_risk=scan.risk, injection_flagged=scan.flagged,
+            injection_summary=scan.summary(),
         )
 
     def ingest_file(self, path: str | Path, title: str = "") -> IngestResponse:

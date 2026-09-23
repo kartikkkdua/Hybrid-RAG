@@ -102,6 +102,14 @@ export default function Corpus({ sources, onChanged }) {
             <div className="doc-meta">
               <div className="doc-name" title={s.source}>
                 {s.source}
+                {s.injection_flagged && (
+                  <span
+                    className="risk-pill"
+                    title="This document contains instruction-shaped text (possible prompt injection). It is still indexed; retrieved text is always fenced as untrusted data."
+                  >
+                    ⚠
+                  </span>
+                )}
               </div>
               <div className="muted tiny">
                 {s.n_chunks} chunks · {(s.n_chars / 1000).toFixed(1)}k chars

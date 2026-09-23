@@ -139,6 +139,11 @@ def main():
     print(f"corpus: {len(ingested)} docs, {len(chunks)} chunks | "
           f"embedder={svc.embedder.name} | gold={len(gold)} questions | llm={svc.llm.available}\n")
 
+    # Warm up before timing: sentence-transformers and the cross-encoder load
+    # lazily on first use, and that one-time cost otherwise lands in the p95 of
+    # whichever config happens to run first.
+    svc.search("warmup query for model loading", top_k=3, rerank=True)
+
     rows = []
     for cfg in CONFIGS:
         res = evaluate_config(svc, gold, chunks, cfg)

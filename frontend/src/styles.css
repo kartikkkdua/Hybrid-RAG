@@ -332,3 +332,8 @@ textarea:focus { outline: none; border-color: var(--accent); }
   letter-spacing: 0.06em; color: var(--accent); flex: none;
 }
 .rw-query { font-family: ui-monospace, monospace; font-style: italic; }
+
+/* ---------- injection warning ---------- */
+.risk-pill {
+  margin-left: 6px; color: var(--warn); font-size: 11px; cursor: help;
+}

@@ -62,8 +62,21 @@ jobs:
         run: pytest tests/test_pg_store.py -q
 
   quality-gate:
-    name: retrieval quality gate
+    # The system has two honest configurations, so gate both: the zero-dependency
+    # fallback backends and the real sentence-transformers + cross-encoder stack.
+    # check_thresholds picks the matching profile from the report's embedder.
+    name: quality gate (${{ matrix.profile }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: fallback
+            embed: tfidf
+            rerank: lexical
+          - profile: ml
+            embed: st
+            rerank: cross_encoder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -74,7 +87,19 @@ jobs:
         run: |
           python -m pip install -q --upgrade pip
           pip install -q -r requirements.txt
+      - name: Install ML backends
+        if: matrix.profile == 'ml'
+        run: pip install -q -r requirements-ml.txt --extra-index-url https://download.pytorch.org/whl/cpu
+      - name: Cache embedding + reranker models
+        if: matrix.profile == 'ml'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ hashFiles('requirements-ml.txt', '.env.example') }}
       - name: Evaluate retrieval against the frozen gold set
+        env:
+          EMBED_BACKEND: ${{ matrix.embed }}
+          RERANK_BACKEND: ${{ matrix.rerank }}
         run: python -m eval.run_eval --docs data/sample_docs --out-json eval/reports/ci.json
       - name: Enforce thresholds
         # Fails the build if recall@5 / MRR / nDCG regress below eval/thresholds.json.
@@ -82,7 +107,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: eval-report
+          name: eval-report-${{ matrix.profile }}
           path: eval/reports/ci.json
 
   frontend:

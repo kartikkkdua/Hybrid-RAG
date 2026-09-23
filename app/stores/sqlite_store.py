@@ -233,6 +233,9 @@ class SQLiteStore:
                 doc_id=r["doc_id"], source=r["source"], title=r["title"] or "",
                 n_chunks=r["n_chunks"], n_chars=r["n_chars"],
                 created_at=r["created_at"] or "",
+                injection_flagged=bool(
+                    json.loads(r["metadata"] or "{}").get("injection_flagged", False)
+                ),
             )
             for r in rows
         ]

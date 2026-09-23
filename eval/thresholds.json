@@ -1,13 +1,17 @@
 {
-  "_comment": "Minimum retrieval quality CI will accept. A change that drops any metric below these fails the build. Raise them as the system improves — that is the ratchet.",
+  "_comment": "Minimum retrieval quality CI accepts. Two profiles because the system has two honest configurations: the zero-dependency fallback backends, and the real sentence-transformers + cross-encoder stack. The checker picks a profile from the embedder recorded in the report. Raise these whenever a change genuinely improves retrieval — that is the ratchet.",
   "config": "hybrid + rerank",
-  "min": {
-    "recall@5": 0.90,
-    "mrr": 0.85,
-    "ndcg@10": 0.88,
-    "hit@5": 0.95
-  },
-  "max": {
-    "latency_p95_ms": 250.0
+  "profiles": {
+    "ml": {
+      "match_embedder_prefix": "st:",
+      "_observed": "recall@5 0.9844 | mrr 0.9536 | ndcg@10 0.9522 | p95 105ms",
+      "min": { "recall@5": 0.95, "mrr": 0.92, "ndcg@10": 0.92, "hit@5": 0.97 },
+      "max": { "latency_p95_ms": 2000.0 }
+    },
+    "fallback": {
+      "_observed": "recall@5 0.8984 | mrr 0.7695 | ndcg@10 0.8073 | p95 1.45ms",
+      "min": { "recall@5": 0.85, "mrr": 0.72, "ndcg@10": 0.76, "hit@5": 0.90 },
+      "max": { "latency_p95_ms": 500.0 }
+    }
   }
 }

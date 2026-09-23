@@ -217,12 +217,14 @@ class PostgresStore:
     def list_sources(self) -> list[SourceInfo]:
         with self.pool.connection() as conn:
             rows = conn.execute(
-                """SELECT doc_id, source, title, n_chunks, n_chars, created_at
+                """SELECT doc_id, source, title, n_chunks, n_chars, created_at,
+                          COALESCE((metadata->>'injection_flagged')::boolean, false)
                    FROM documents ORDER BY created_at DESC"""
             ).fetchall()
         return [
             SourceInfo(doc_id=r[0], source=r[1], title=r[2] or "", n_chunks=r[3],
-                       n_chars=r[4], created_at=r[5] or "")
+                       n_chars=r[4], created_at=r[5] or "",
+                       injection_flagged=bool(r[6]))
             for r in rows
         ]
 

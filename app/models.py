@@ -166,6 +166,10 @@ class IngestResponse(BaseModel):
     n_chunks: int
     n_chars: int
     skipped: bool = False
+    # Indirect prompt-injection screening (reported, not enforced).
+    injection_risk: float = 0.0
+    injection_flagged: bool = False
+    injection_summary: str = "clean"
 
 
 class SourceInfo(BaseModel):
@@ -175,3 +179,4 @@ class SourceInfo(BaseModel):
     n_chunks: int
     n_chars: int
     created_at: str
+    injection_flagged: bool = False
