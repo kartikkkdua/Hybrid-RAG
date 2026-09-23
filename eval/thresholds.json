@@ -1,0 +1,13 @@
+{
+  "_comment": "Minimum retrieval quality CI will accept. A change that drops any metric below these fails the build. Raise them as the system improves — that is the ratchet.",
+  "config": "hybrid + rerank",
+  "min": {
+    "recall@5": 0.90,
+    "mrr": 0.85,
+    "ndcg@10": 0.88,
+    "hit@5": 0.95
+  },
+  "max": {
+    "latency_p95_ms": 250.0
+  }
+}

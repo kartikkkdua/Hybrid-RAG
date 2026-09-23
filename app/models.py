@@ -59,19 +59,28 @@ class RetrievedChunk(BaseModel):
     rank: int = 0
 
 
+class HistoryTurn(BaseModel):
+    role: Literal["user", "assistant"] = "user"
+    text: str = ""
+
+
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 8
     rerank: bool = True
     dense: bool = True
     bm25: bool = True
+    history: list[HistoryTurn] = Field(default_factory=list)
 
 
 class SearchResponse(BaseModel):
-    query: str
+    query: str                       # the user's original wording
     results: list[RetrievedChunk]
     latency_ms: float = 0.0
     stages: dict[str, Any] = Field(default_factory=dict)
+    search_query: str = ""           # what retrieval actually used
+    rewritten: bool = False          # true when history was folded in
+    rewrite_method: str = "none"     # none | heuristic | llm
 
 
 # --------------------------------------------------------------------------- #
@@ -110,6 +119,9 @@ class Answer(BaseModel):
     retrieved: list[RetrievedChunk] = Field(default_factory=list)
     usage: Usage = Field(default_factory=Usage)
     verification: dict[str, Any] = Field(default_factory=dict)
+    search_query: str = ""
+    rewritten: bool = False
+    rewrite_method: str = "none"
 
 
 class AnswerRequest(BaseModel):
@@ -117,6 +129,7 @@ class AnswerRequest(BaseModel):
     top_k: int = 8
     rerank: bool = True
     mode: Literal["grounded", "extractive"] = "grounded"
+    history: list[HistoryTurn] = Field(default_factory=list)
 
 
 class TraceStep(BaseModel):

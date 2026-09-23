@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install -q --upgrade pip
+          pip install -q -r requirements.txt -r requirements-agent.txt
+      - name: Run tests
+        run: pytest -q
+        # No API key and no GPU in CI: every optional backend has a
+        # deterministic fallback, so the whole suite still runs.
+
+  postgres:
+    name: postgres + pgvector backend
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rag
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d rag"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install -q --upgrade pip
+          pip install -q -r requirements.txt -r requirements-pg.txt
+      - name: Backend tests
+        env:
+          PG_TEST_DSN: postgresql://postgres:postgres@localhost:5432/rag
+        run: pytest tests/test_pg_store.py -q
+
+  quality-gate:
+    name: retrieval quality gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install -q --upgrade pip
+          pip install -q -r requirements.txt
+      - name: Evaluate retrieval against the frozen gold set
+        run: python -m eval.run_eval --docs data/sample_docs --out-json eval/reports/ci.json
+      - name: Enforce thresholds
+        # Fails the build if recall@5 / MRR / nDCG regress below eval/thresholds.json.
+        run: python -m eval.check_thresholds eval/reports/ci.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-report
+          path: eval/reports/ci.json
+
+  frontend:
+    name: frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend

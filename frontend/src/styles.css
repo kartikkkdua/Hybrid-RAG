@@ -320,3 +320,15 @@ textarea:focus { outline: none; border-color: var(--accent); }
 .at-subs { margin-top: 9px; }
 .at-subs ul { margin: 3px 0 0; padding-left: 16px; font-size: 11.5px; color: var(--text-2); }
 .at-critique { margin-top: 8px; font-style: italic; }
+
+/* ---------- conversational rewrite note ---------- */
+.rewrite-note {
+  display: flex; align-items: baseline; gap: 7px; margin-bottom: 9px;
+  font-size: 11.5px; color: var(--text-2);
+  border-left: 2px solid var(--accent); padding-left: 8px;
+}
+.rw-label {
+  text-transform: uppercase; font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.06em; color: var(--accent); flex: none;
+}
+.rw-query { font-family: ui-monospace, monospace; font-style: italic; }

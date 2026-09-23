@@ -118,6 +118,12 @@ export default function Chat({
               onClick={() => onSelectMessage(i)}
             >
               <div className="bubble">
+                {m.rewritten && m.searchQuery && (
+                  <div className="rewrite-note" title="Retrieval has no memory, so the follow-up was expanded using the conversation">
+                    <span className="rw-label">searched</span>
+                    <span className="rw-query">{m.searchQuery}</span>
+                  </div>
+                )}
                 {m.agent && <AgentTrace message={m} />}
                 {m.refused ? (
                   <div className="refused">

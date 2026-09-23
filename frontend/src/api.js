@@ -28,11 +28,11 @@ export async function uploadFile(file) {
   return j("/upload", { method: "POST", body: fd });
 }
 
-export const agentAnswer = (query, topK = 8) =>
+export const agentAnswer = (query, topK = 8, history = []) =>
   j("/agent", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, top_k: topK }),
+    body: JSON.stringify({ query, top_k: topK, history }),
   });
 
 export const search = (query, opts = {}) =>
@@ -43,7 +43,8 @@ export const search = (query, opts = {}) =>
   });
 
 // Stream an answer via SSE, honouring the live retrieval toggles.
-export function streamAnswer(query, settings, { onRetrieval, onToken, onDone, onError }) {
+export function streamAnswer(query, settings, handlers, history = []) {
+  const { onRetrieval, onToken, onDone, onError } = handlers;
   const p = new URLSearchParams({
     query,
     top_k: String(settings.topK ?? 8),
@@ -51,6 +52,8 @@ export function streamAnswer(query, settings, { onRetrieval, onToken, onDone, on
     dense: String(settings.dense ?? true),
     bm25: String(settings.bm25 ?? true),
   });
+  // EventSource is GET-only, so send a small recent window of turns.
+  if (history.length) p.set("history", JSON.stringify(history));
   const es = new EventSource(`${BASE}/answer/stream?${p}`);
   es.addEventListener("retrieval", (e) => onRetrieval(JSON.parse(e.data)));
   es.addEventListener("token", (e) => onToken(JSON.parse(e.data).text));

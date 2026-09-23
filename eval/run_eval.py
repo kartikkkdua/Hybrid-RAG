@@ -121,6 +121,7 @@ def main():
     ap.add_argument("--docs", default="data/sample_docs")
     ap.add_argument("--gold", default=str(Path(__file__).parent / "gold.jsonl"))
     ap.add_argument("--judge", action="store_true", help="also run RAGAS-style answer metrics")
+    ap.add_argument("--out-json", default="", help="also write the report to this exact path (for CI)")
     args = ap.parse_args()
 
     # Fresh, reproducible corpus in a scratch DB.
@@ -157,7 +158,12 @@ def main():
                   f"answer_relevance={judged['answer_relevance']}  "
                   f"cost=${judged['judged_cost_usd']}")
 
-    _save_report(rows, judged, svc, len(chunks), len(gold))
+    payload = _save_report(rows, judged, svc, len(chunks), len(gold))
+    if args.out_json:
+        out = Path(args.out_json)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, indent=2))
+        print(f"Wrote {out}")
     svc.close()
 
 
@@ -203,6 +209,7 @@ def _save_report(rows, judged, svc, n_chunks, n_gold):
                f"- judged cost: ${judged['judged_cost_usd']}"]
     (REPORTS_DIR / f"eval-{ts}.md").write_text("\n".join(md))
     print(f"\nSaved report -> eval/reports/eval-{ts}.md")
+    return payload
 
 
 if __name__ == "__main__":

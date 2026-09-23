@@ -1,5 +1,7 @@
 # Hybrid RAG — retrieval, citations, evaluation, agents, and an MCP server
 
+[![CI](https://github.com/kartikkkdua/Hybrid-RAG/actions/workflows/ci.yml/badge.svg)](https://github.com/kartikkkdua/Hybrid-RAG/actions/workflows/ci.yml)
+
 A production-shaped **retrieval-augmented generation** system built as a single
 coherent codebase. It does hybrid retrieval (BM25 + dense + Reciprocal Rank
 Fusion + cross-encoder rerank), grounds answers in the corpus with **verified
@@ -63,7 +65,7 @@ and every citation is verified before it reaches the user.
 make venv                 # python venv + core deps (no torch, no DB server)
 make ingest               # index data/sample_docs
 make demo                 # search + ask (extractive mode without an API key)
-make test                 # 23 tests, all green
+make test                 # 31 tests, all green
 make serve                # API at http://localhost:8000  (also serves the built UI)
 ```
 
@@ -145,6 +147,50 @@ tokens, and p50/p95 latency** per variant — the evidence for "ship Haiku here 
 make ab
 .venv/bin/python -m eval.ab_harness --models claude-sonnet-5,claude-haiku-4-5-20251001
 ```
+
+### Quality gate in CI (`eval/check_thresholds.py`)
+Tests prove the code runs. The gate proves the system still **retrieves well**:
+CI runs the gold-set evaluation on every push and fails the build if recall@5,
+MRR or nDCG regress below `eval/thresholds.json`.
+
+```bash
+make gate    # eval + threshold check, exactly as CI runs it
+```
+
+```
+  PASS  recall@5         1.0     (min 0.9)
+  PASS  mrr              0.9643  (min 0.85)
+  PASS  ndcg@10          0.9736  (min 0.88)
+  PASS  latency_p95_ms   0.39    (max 250.0)
+```
+
+Treat the thresholds as a **ratchet**: when a change genuinely improves
+retrieval, raise them so the gain cannot silently erode later. CI also runs the
+Postgres backend against a real pgvector service container, and builds the
+frontend.
+
+### History-aware retrieval (`app/rewrite.py`)
+A multi-turn UI hides a retrieval bug: **retrieval has no memory**. Ask
+"What constant does RRF use?" then "why that value?" and the second turn searches
+the literal string `why that value?`, which matches nothing useful.
+
+So before retrieving, a follow-up is condensed into a standalone query. Measured
+on the sample corpus:
+
+| turn | searched for | top hit |
+|---|---|---|
+| "why that value?" *(no history)* | `why that value?` | `mcp.md` ✗ wrong doc |
+| "why that value?" *(with history)* | `why that value? constant reciprocal rank fusion` | `rag_overview.md` ✓ |
+
+Design notes worth knowing:
+- The rewrite is used for **retrieval only** — generation still receives the
+  user's original wording, so the answer addresses what they actually asked.
+- Rewriting is **skipped when the question already stands on its own**, so the
+  common case costs nothing. "What does nDCG capture?" is left alone (the
+  acronym is distinctive); "explain more" is not.
+- The heuristic fallback is **additive** — it appends context terms rather than
+  regenerating the question, so it cannot invent a different question.
+- The UI shows the expanded query, so the behaviour is visible rather than magic.
 
 ### Multi-agent layer (`app/agents/`) — LangGraph
 A supervisor graph over the retriever. Two things a single-pass RAG chain cannot do:
@@ -255,13 +301,15 @@ app/              core library
   embeddings.py   sentence-transformers | hashing fallback
   stores/         base.py (Store interface) · sqlite_store.py · pg_store.py
   retrieval/      dense · fusion(RRF) · rerank · hybrid orchestrator
+  rewrite.py      conversational query condensing (history-aware retrieval)
   agents/         LangGraph: state · nodes (router/planner/researcher/critic) · graph
   generation.py   grounded answers, citation verification, refusal
   llm.py          Anthropic wrapper with token + cost accounting
   api.py          FastAPI (+ SSE, upload, delete) and static SPA host
   service.py      composition root shared by CLI / API / MCP
   cli.py          typer CLI
-eval/             metrics, gold set, RAGAS-style judge, runner, A/B harness
+eval/             metrics, gold set, RAGAS-style judge, runner, A/B harness,
+                  thresholds.json + check_thresholds.py (the CI quality gate)
 mcp_server/       MCP server (4 tools) + client (scripted + agent mode)
 frontend/         React + Vite product UI (chat, inspector, corpus manager)
 tests/            pytest — offsets, fusion, retrieval, citations, Postgres backend
@@ -275,6 +323,10 @@ tests/            pytest — offsets, fusion, retrieval, citations, Postgres bac
   path; enforced a Pydantic JSON contract with automatic repair/retry.
 - Instrumented **token cost and p95 latency** per query; A/B-tested prompts and
   models to trade quality against cost.
+- Gated CI on **retrieval quality**, not just tests: a frozen gold set fails the
+  build if recall@5 / MRR / nDCG regress.
+- Fixed history-blind retrieval with **conversational query condensing**, applied
+  to retrieval only so answers keep the user's framing.
 - Built a **LangGraph** supervisor graph (routing, decomposition, self-critique,
   bounded escalation) on top of the retriever, with a visible execution trace.
 - Exposed the system over the **Model Context Protocol** (5 tools) and a

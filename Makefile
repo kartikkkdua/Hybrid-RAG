@@ -43,6 +43,10 @@ demo: ## Ingest + a sample search and answer
 eval: ## Run the retrieval evaluation + config table (JUDGE=1 adds RAGAS metrics)
 	$(PY) -m eval.run_eval --docs data/sample_docs $(if $(JUDGE),--judge,)
 
+gate: ## Run the retrieval quality gate exactly as CI does
+	$(PY) -m eval.run_eval --docs data/sample_docs --out-json eval/reports/ci.json
+	$(PY) -m eval.check_thresholds eval/reports/ci.json
+
 ab: ## Run the prompt/model A/B harness
 	$(PY) -m eval.ab_harness --docs data/sample_docs
 
@@ -64,4 +68,4 @@ build-frontend: ## Build the frontend into frontend/dist
 docker: ## Build and run everything in Docker
 	docker compose up --build
 
-.PHONY: help venv ml agent agent-demo pg pg-test serve-pg ingest demo eval ab mcp-demo test serve frontend build-frontend docker
+.PHONY: help venv ml agent agent-demo pg pg-test serve-pg ingest demo eval gate ab mcp-demo test serve frontend build-frontend docker

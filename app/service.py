@@ -14,7 +14,19 @@ from .ingest import Ingestor
 from .llm import LLMClient
 from .models import Answer, IngestResponse, SearchResponse, SourceInfo
 from .retrieval import HybridRetriever
+from .rewrite import condense_query
 from .stores import build_store
+
+
+def _as_turns(history) -> list[dict]:
+    """Accept dicts or pydantic HistoryTurn objects from any caller."""
+    out = []
+    for t in history or []:
+        if hasattr(t, "model_dump"):
+            t = t.model_dump()
+        if isinstance(t, dict) and t.get("text"):
+            out.append({"role": t.get("role", "user"), "text": str(t["text"])})
+    return out
 
 
 class RAGService:
@@ -68,21 +80,37 @@ class RAGService:
 
     # -- retrieval --
     def search(self, query: str, top_k: Optional[int] = None, rerank: bool = True,
-               dense: bool = True, bm25: bool = True) -> SearchResponse:
-        return self.retriever.search(
-            query, top_k=top_k, use_rerank=rerank, use_dense=dense, use_bm25=bm25
+               dense: bool = True, bm25: bool = True,
+               history: Optional[list] = None) -> SearchResponse:
+        """Hybrid search. When `history` is given, a follow-up question is first
+        condensed into a standalone query — retrieval has no memory of its own."""
+        rw = condense_query(query, _as_turns(history), self.llm)
+        resp = self.retriever.search(
+            rw.query, top_k=top_k, use_rerank=rerank, use_dense=dense, use_bm25=bm25
         )
+        # Report the user's wording as `query`, and what we actually searched.
+        resp.query = query
+        resp.search_query = rw.query
+        resp.rewritten = rw.rewritten
+        resp.rewrite_method = rw.method
+        return resp
 
     # -- generation --
     def answer(self, query: str, top_k: Optional[int] = None, rerank: bool = True,
-               mode: str = "grounded", model: Optional[str] = None) -> Answer:
-        sr = self.search(query, top_k=top_k, rerank=rerank)
+               mode: str = "grounded", model: Optional[str] = None,
+               history: Optional[list] = None) -> Answer:
+        sr = self.search(query, top_k=top_k, rerank=rerank, history=history)
+        # Generation gets the ORIGINAL question so the answer addresses what the
+        # user actually asked, not the expanded retrieval query.
         ans = self.generator.answer(query, sr.results, model=model, mode=mode)
         ans.retrieved = sr.results
+        ans.search_query = sr.search_query
+        ans.rewritten = sr.rewritten
+        ans.rewrite_method = sr.rewrite_method
         return ans
 
     # -- multi-agent --
-    def agent_answer(self, query: str, top_k: int = 8):
+    def agent_answer(self, query: str, top_k: int = 8, history: Optional[list] = None):
         """Run the LangGraph multi-agent graph (router → research → critic).
 
         Imported lazily: langgraph is an optional extra, so the core app keeps
@@ -90,7 +118,12 @@ class RAGService:
         """
         from .agents.graph import get_runner
 
-        return get_runner(self).run(query, top_k=top_k)
+        rw = condense_query(query, _as_turns(history), self.llm)
+        ans = get_runner(self).run(rw.query, top_k=top_k)
+        ans.search_query = rw.query
+        ans.rewritten = rw.rewritten
+        ans.rewrite_method = rw.method
+        return ans
 
     @staticmethod
     def agent_available() -> bool:

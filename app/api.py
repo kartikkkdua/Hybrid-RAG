@@ -67,14 +67,15 @@ def ingest_path(payload: dict):
 def search(req: SearchRequest):
     svc = get_service()
     resp = svc.search(req.query, top_k=req.top_k, rerank=req.rerank,
-                      dense=req.dense, bm25=req.bm25)
+                      dense=req.dense, bm25=req.bm25, history=req.history)
     return resp.model_dump()
 
 
 @api.post("/answer")
 def answer(req: AnswerRequest):
     svc = get_service()
-    ans = svc.answer(req.query, top_k=req.top_k, rerank=req.rerank, mode=req.mode)
+    ans = svc.answer(req.query, top_k=req.top_k, rerank=req.rerank, mode=req.mode,
+                     history=req.history)
     return ans.model_dump()
 
 
@@ -84,7 +85,8 @@ def agent(req: AnswerRequest):
     svc = get_service()
     if not svc.agent_available():
         raise HTTPException(status_code=501, detail="langgraph is not installed")
-    return svc.agent_answer(req.query, top_k=req.top_k).model_dump()
+    return svc.agent_answer(req.query, top_k=req.top_k,
+                            history=req.history).model_dump()
 
 
 @api.get("/sources")
@@ -118,15 +120,30 @@ def delete_document(doc_id: str):
 
 @api.get("/answer/stream")
 async def answer_stream(query: str, top_k: int = 8, rerank: bool = True,
-                        dense: bool = True, bm25: bool = True):
-    """Stream retrieval metadata, then live answer tokens, then verified citations."""
+                        dense: bool = True, bm25: bool = True, history: str = ""):
+    """Stream retrieval metadata, then live answer tokens, then verified citations.
+
+    `history` is a JSON array of {role, text} turns. EventSource can only issue
+    GET, so the client sends a truncated window of recent turns in the query
+    string; it is only used to condense a follow-up into a standalone query.
+    """
     svc = get_service()
-    sr = svc.search(query, top_k=top_k, rerank=rerank, dense=dense, bm25=bm25)
+    turns = []
+    if history:
+        try:
+            parsed = json.loads(history)
+            if isinstance(parsed, list):
+                turns = [t for t in parsed if isinstance(t, dict)]
+        except (json.JSONDecodeError, TypeError):
+            turns = []
+    sr = svc.search(query, top_k=top_k, rerank=rerank, dense=dense, bm25=bm25,
+                    history=turns)
 
     async def event_gen():
         yield {"event": "retrieval", "data": json.dumps(
             {"results": [r.model_dump() for r in sr.results], "stages": sr.stages,
-             "latency_ms": sr.latency_ms})}
+             "latency_ms": sr.latency_ms, "search_query": sr.search_query,
+             "rewritten": sr.rewritten, "rewrite_method": sr.rewrite_method})}
 
         if not sr.results:
             empty = svc.stats().get("chunks", 0) == 0

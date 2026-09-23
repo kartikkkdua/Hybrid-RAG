@@ -84,10 +84,17 @@ export default function App() {
     });
     setInput("");
 
+    // Retrieval has no memory of its own: send a recent window of turns so a
+    // follow-up ("why that value?") can be condensed into a standalone query.
+    const history = messages
+      .slice(-6)
+      .map((m) => ({ role: m.role, text: (m.text || "").slice(0, 400) }))
+      .filter((m) => m.text);
+
     // Agent mode runs the LangGraph graph (not streamable — it branches), so we
     // await the whole run and then render its trace.
     if (settings.agentMode) {
-      agentAnswer(q, settings.topK)
+      agentAnswer(q, settings.topK, history)
         .then((d) => {
           patchLast({
             text: d.answer || "",
@@ -97,6 +104,8 @@ export default function App() {
             refused: !!d.refused,
             refusalReason: d.refusal_reason || "Could not ground an answer.",
             retrieval: { results: d.retrieved || [], stages: {}, latency_ms: d.usage?.latency_ms },
+            searchQuery: d.search_query,
+            rewritten: !!d.rewritten,
             trace: d.trace || [],
             route: d.route,
             routeReason: d.route_reason,
@@ -121,7 +130,12 @@ export default function App() {
     }
 
     streamAnswer(q, settings, {
-      onRetrieval: (d) => patchLast({ retrieval: d }),
+      onRetrieval: (d) =>
+        patchLast({
+          retrieval: d,
+          searchQuery: d.search_query,
+          rewritten: !!d.rewritten,
+        }),
       onToken: (t) => {
         bufRef.current += t;
         patchLast({ text: extractAnswerField(bufRef.current) });
@@ -147,7 +161,7 @@ export default function App() {
         });
         setRunning(false);
       },
-    });
+    }, history);
   };
 
   const selected =
